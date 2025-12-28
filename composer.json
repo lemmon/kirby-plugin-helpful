@@ -1,0 +1,39 @@
+{
+    "name": "lemmon/kirby-helpful",
+    "description": "Kirby plugin that collects minimal helpfulness feedback with a no-JS form and privacy-first defaults.",
+    "license": "MIT",
+    "type": "kirby-plugin",
+    "keywords": [
+        "kirby",
+        "kirby-cms",
+        "kirby-plugin",
+        "feedback",
+        "helpful",
+        "htmx"
+    ],
+    "authors": [
+        {
+            "name": "Jakub Pelák",
+            "email": "jpelak@gmail.com"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/lemmon/kirby-plugin-helpful/issues",
+        "source": "https://github.com/lemmon/kirby-plugin-helpful"
+    },
+    "require": {
+        "getkirby/composer-installer": "^1.2"
+    },
+    "require-dev": {
+        "ergebnis/composer-normalize": "^2.48"
+    },
+    "config": {
+        "allow-plugins": {
+            "ergebnis/composer-normalize": true,
+            "getkirby/composer-installer": true
+        }
+    },
+    "extra": {
+        "installer-name": "helpful"
+    }
+}
