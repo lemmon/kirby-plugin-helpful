@@ -1,165 +1,132 @@
 # Helpful Feedback for Kirby
 
-A minimal, privacy-friendly feedback block for Kirby CMS that asks a single question: "Was this page helpful?" Visitors answer with Yes or No via a plain HTML form POST. JavaScript is optional; HTMX can enhance the interaction but is never required.
+A minimal, privacy-friendly "Was this page helpful?" widget for Kirby CMS. Plain HTML POST, no JavaScript required. HTMX progressively enhances if present.
+
+**Intentionally opinionated.** Three config options (`secret`, `storage.dir`, `cache`). Rate limits, dedupe windows, IP anonymization, token TTL, session behavior, log filename, and HTMX attributes are baked in -- if you need to tune them, fork the plugin.
 
 ## Installation
 
-### Composer
-
 ```bash
 composer require lemmon/kirby-helpful
+# or
+git submodule add git@github.com:lemmon/kirby-plugin-helpful.git site/plugins/helpful
 ```
-
-### Git Submodule
-
-```bash
-git submodule add https://github.com/lemmon/kirby-plugin-helpful.git site/plugins/helpful
-```
-
-### Manual
-
-[Download the plugin](https://api.github.com/repos/lemmon/kirby-plugin-helpful/zipball) and extract it to `/site/plugins/helpful`.
 
 ## Usage
-
-Drop the snippet into any template or snippet where you want the feedback block to appear:
 
 ```php
 <?php snippet('helpful') ?>
 ```
 
-You can override the labels per call if needed:
+Override labels per call when needed:
 
 ```php
 <?php snippet('helpful', [
-    'question' => 'Was this guide useful?',
-    'yesLabel' => 'Yes',
-    'noLabel' => 'No',
-    'confirmation' => 'Thanks for your feedback.',
+    'question'     => 'Was this guide useful?',
+    'confirmation' => 'Thanks!',
 ]) ?>
 ```
 
-The snippet emits semantic, classed markup with no styling. Target the BEM-like classes in your CSS:
+Labels read from `t('helpful.*')` with English fallbacks. Add translation keys for i18n instead of per-call overrides:
 
--   `helpful`
--   `helpful__question`
--   `helpful__actions`
--   `helpful__button`
--   `helpful__confirmation`
-
-## How it works
-
--   The form submits to `/helpful` using POST.
--   Each form render includes a signed token (HMAC + TTL) so blind POSTs fail.
--   Votes are deduplicated by `pageId + IP hash` within a time window (default 24h).
--   Rate limits throttle excessive traffic (per-IP and per-IP-per-page).
--   A Kirby session value is set after a successful vote to show the "already voted" state for that visitor.
--   If the session cookie is missing, the UI falls back to the IP-dedupe cache so it will not show buttons for blocked votes.
--   Page-level counts are stored on the page itself (default fields: `helpful_yes` and `helpful_no`).
-
-Note: counts are written via normal Kirby page updates. The target fields must exist in the page blueprint, and the current request must have permission to update the page unless `lemmon.helpful.counts.impersonate` is set.
-
-## HTMX enhancement (optional)
-
-The plugin does not load HTMX. If you include HTMX yourself, enable it in config to swap the feedback block without a full page reload:
-
-```php
-return [
-    'lemmon.helpful.htmx.enabled' => true,
-    'lemmon.helpful.htmx.target' => 'this',
-    'lemmon.helpful.htmx.swap' => 'outerHTML',
-];
 ```
+helpful.question:     Bylo to užitečné?
+helpful.yes:          Ano
+helpful.no:           Ne
+helpful.confirmation: Díky za zpětnou vazbu.
+```
+
+BEM-like classes for styling: `helpful`, `helpful__question`, `helpful__actions`, `helpful__button`, `helpful__confirmation`. No CSS ships with the plugin.
 
 ## Storage
 
-By default, every valid vote is appended to `site/logs/helpful/votes.jsonl` as JSON lines. You can disable storage or change the location via config.
+Every valid vote is appended to `{storage-root}/helpful/votes.jsonl` as one JSON object per line. The log is the source of truth; counts are derived on demand:
+
+```php
+use Lemmon\Helpful\Helpful;
+
+$totals = Helpful::counts($page->uuid()->toString());
+// => ['yes' => 42, 'no' => 3]
+```
+
+Votes are keyed by the full page UUID string (`page://…` from `$page->uuid()->toString()`), not the filesystem path, so data survives renames. UUIDs are enabled in Kirby by default; if you have turned them off globally, this plugin is not a fit.
+
+Each JSONL line is a small JSON object; new writes use a `page` key. Older `pageId` (path) lines from a previous version are not counted for `Helpful::counts()`.
+
+Counts are cached for 5 minutes; the entry for a page is invalidated after each successful vote.
+
+The log path resolves in this order:
+
+1. `lemmon.helpful.storage.dir` override -- wins if set.
+2. `{storage-root}/helpful/` if the site registers a `storage` root.
+3. `{site-root}/storage/helpful/` as the zero-config fallback.
+
+### Register a shared `storage` root (recommended)
+
+The `storage/` directory is intended as a universal, Git-ignored area for runtime-only plugin data. Register it once in `public/index.php`:
+
+```php
+$kirby = new Kirby([
+    'roots' => [
+        'index'   => __DIR__,
+        'base'    => $base = dirname(__DIR__),
+        'site'    => $base . '/site',
+        'content' => $base . '/content',
+        'storage' => $base . '/storage',
+    ],
+]);
+```
+
+Then add `/storage` to `.gitignore`.
+
+## HTMX (optional)
+
+The form always renders with `hx-post`, `hx-target="this"`, and `hx-swap="outerHTML"` attributes. They are ignored when HTMX is not loaded; when it is, you get partial swaps for free.
 
 ## Configuration
 
-Common options (set in `site/config/config.php`):
-
 ```php
 return [
-    'lemmon.helpful.enabled' => true,
-    'lemmon.helpful.tokenTtl' => 1800,
-    'lemmon.helpful.dedupe.window' => 86400,
-    'lemmon.helpful.rateLimit.perIp' => 30,
-    'lemmon.helpful.rateLimit.window' => 600,
-    'lemmon.helpful.rateLimit.perIpPage' => 3,
-    'lemmon.helpful.rateLimit.pageWindow' => 86400,
-    'lemmon.helpful.session.enabled' => true,
-    'lemmon.helpful.session.long' => true,
-    'lemmon.helpful.counts.enabled' => true,
-    'lemmon.helpful.counts.yesField' => 'helpful_yes',
-    'lemmon.helpful.counts.noField' => 'helpful_no',
-    'lemmon.helpful.counts.impersonate' => 'kirby',
-    'lemmon.helpful.counts.language' => null,
-    'lemmon.helpful.storage.enabled' => true,
-    'lemmon.helpful.allowNoJs' => true,
+    'lemmon.helpful.secret'      => null,          // HMAC secret; falls back to Kirby's content token
+    'lemmon.helpful.storage.dir' => null,          // absolute path override
+    'lemmon.helpful.cache'       => [
+        'active' => true,
+        'type'   => 'file',
+        'prefix' => 'lemmon/helpful',              // see note below
+    ],
 ];
 ```
 
-Additional options you may want:
+The `cache` option is the plugin-cache config key Kirby resolves for `kirby()->cache('lemmon.helpful')` (see `AppCaches::cacheOptionsKey`). The explicit `prefix` bypasses Kirby's default `{indexUrl-slug}/lemmon/helpful` path, so caches stay in one place across CLI and HTTP invocations. Redis/memcached users only need to change `type` + driver options.
 
--   `lemmon.helpful.secret` - override the HMAC secret (defaults to Kirby content token). **Important:** In production, set a strong, random secret. See Production Considerations below.
--   `lemmon.helpful.ipAnonymize.enabled` - enable or disable IP truncation before hashing.
--   `lemmon.helpful.ipAnonymize.v4` / `lemmon.helpful.ipAnonymize.v6` - prefix lengths for truncation (defaults: /24 and /64).
--   `lemmon.helpful.storage.dir` / `lemmon.helpful.storage.file` - override the JSONL log location.
--   `lemmon.helpful.storeIpHash` - toggle IP hash storage in the log.
--   `lemmon.helpful.storeUserAgentHash` - toggle user-agent hash storage in the log.
--   `lemmon.helpful.labels.question` / `lemmon.helpful.labels.yes` / `lemmon.helpful.labels.no` / `lemmon.helpful.labels.confirmation` - global text overrides.
--   `lemmon.helpful.counts.enabled` - toggle page field updates for vote counts.
--   `lemmon.helpful.counts.yesField` / `lemmon.helpful.counts.noField` - override the page fields used to store counts.
--   `lemmon.helpful.counts.impersonate` - optional impersonation user for count updates (use `null` or `false` to disable).
--   `lemmon.helpful.counts.language` - optional language code to write counts into a specific translation.
--   `lemmon.helpful.logging.enabled` - enable development logging for debugging (disabled by default). Logs vote storage failures, rate limit hits, and token validation failures to Kirby's log system.
+To turn the widget off: remove `snippet('helpful')` from your templates, or disable the whole plugin in `site/config` with `'lemmon/helpful' => false` (Kirby does not load the plugin, so the route and snippet are both gone). There is no per-plugin `enabled` option -- that would only duplicate what Kirby already gives you.
 
-## Production Considerations
+### Baked-in defaults
 
-### Secret Management
+| Behavior           | Value                                           |
+| ------------------ | ----------------------------------------------- |
+| Token TTL          | 30 min                                          |
+| Dedupe window      | 24 h (per IP + page)                            |
+| Rate limit (IP)    | 30 votes / 10 min                               |
+| Rate limit (page)  | 3 votes per IP + page / 24 h                    |
+| Counts cache TTL   | 5 min                                           |
+| IPv4 anonymization | /24 (last octet zeroed)                         |
+| IPv6 anonymization | /64 (last 8 bytes zeroed)                       |
+| Session dedupe     | always on, `kirby_session` cookie, long session |
+| Log filename       | `votes.jsonl`                                   |
+| User agent         | not stored                                      |
 
-The plugin uses HMAC-signed tokens to prevent blind POST spam. By default, it uses Kirby's content token, but **in production you should set a strong, random secret**:
+## Security
 
-```php
-return [
-    'lemmon.helpful.secret' => 'your-strong-random-secret-here',
-];
-```
-
-Generate a secure secret using:
-
--   PHP: `bin2hex(random_bytes(32))`
--   Command line: `openssl rand -hex 32`
-
-**Why this matters:** If the secret is compromised or predictable, attackers could forge tokens and bypass rate limiting. Keep your secret secure and never commit it to version control (use environment variables or secure config files).
-
-### Development Logging
-
-For debugging issues in development, you can enable logging:
+Set a strong secret in production:
 
 ```php
-return [
-    'lemmon.helpful.logging.enabled' => true,
-];
+'lemmon.helpful.secret' => bin2hex(random_bytes(32)),
+// or: openssl rand -hex 32
 ```
 
-This logs:
-
--   Vote storage failures (file permission issues, disk full, etc.)
--   Rate limit hits
--   Token validation failures
-
-Logs are written to Kirby's log system (typically `site/logs/helpful.log`). **Keep logging disabled in production** to avoid exposing sensitive information and reduce I/O overhead.
-
-## Roadmap
-
--   [ ] CSS class override - allow customizing class names via config or snippet parameters
+If the secret leaks, attackers can forge tokens and bypass rate limiting. Load it from env / secret manager; never commit it.
 
 ## License
 
-MIT License. See `LICENSE` for details.
-
----
-
-Questions or ideas? File an issue or open a PR. This plugin is intentionally small and boring so it stays dependable.
+MIT. See `LICENSE`.

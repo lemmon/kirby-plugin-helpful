@@ -8,59 +8,19 @@ use Lemmon\Helpful\Helpful;
 
 Kirby::plugin('lemmon/helpful', [
     'options' => [
-        'enabled' => true,
-        'tokenTtl' => Helpful::DEFAULT_TOKEN_TTL,
-        'rateLimit' => [
-            'perIp' => Helpful::DEFAULT_RATE_PER_IP,
-            'window' => Helpful::DEFAULT_RATE_WINDOW,
-            'perIpPage' => Helpful::DEFAULT_RATE_PER_IP_PAGE,
-            'pageWindow' => Helpful::DEFAULT_RATE_PAGE_WINDOW,
+        'secret'  => null,
+        'storage' => [
+            'dir' => null,
         ],
-        'dedupe' => [
-            'window' => Helpful::DEFAULT_DEDUPE_WINDOW,
-        ],
-        'allowNoJs' => true,
+        // Kirby resolves `kirby()->cache('lemmon.helpful')` to this option
+        // key via AppCaches::cacheOptionsKey(): no cache subname means the
+        // option key is plain `cache`. The explicit `prefix` skips Kirby's
+        // default `{indexUrl-slug}/lemmon/helpful` so HTTP and CLI don't
+        // end up with separate cache directories.
         'cache' => [
             'active' => true,
-            'type' => 'file',
-        ],
-        'session' => [
-            'enabled' => true,
-            'long' => Helpful::DEFAULT_SESSION_LONG,
-            'keyPrefix' => Helpful::DEFAULT_SESSION_PREFIX,
-        ],
-        'ipAnonymize' => [
-            'enabled' => Helpful::DEFAULT_IP_ANONYMIZE_ENABLED,
-            'v4' => Helpful::DEFAULT_IP_ANONYMIZE_V4,
-            'v6' => Helpful::DEFAULT_IP_ANONYMIZE_V6,
-        ],
-        'storage' => [
-            'enabled' => Helpful::DEFAULT_STORAGE_ENABLED,
-            'dir' => null,
-            'file' => Helpful::DEFAULT_STORAGE_FILE,
-        ],
-        'counts' => [
-            'enabled' => Helpful::DEFAULT_COUNTS_ENABLED,
-            'yesField' => Helpful::DEFAULT_COUNT_FIELD_YES,
-            'noField' => Helpful::DEFAULT_COUNT_FIELD_NO,
-            'impersonate' => Helpful::DEFAULT_COUNT_IMPERSONATE,
-            'language' => null,
-        ],
-        'storeIpHash' => true,
-        'storeUserAgentHash' => false,
-        'htmx' => [
-            'enabled' => false,
-            'target' => 'this',
-            'swap' => 'outerHTML',
-        ],
-        'labels' => [
-            'question' => Helpful::DEFAULT_QUESTION,
-            'yes' => Helpful::DEFAULT_YES_LABEL,
-            'no' => Helpful::DEFAULT_NO_LABEL,
-            'confirmation' => Helpful::DEFAULT_CONFIRMATION,
-        ],
-        'logging' => [
-            'enabled' => Helpful::DEFAULT_LOGGING_ENABLED,
+            'type'   => 'file',
+            'prefix' => 'lemmon/helpful',
         ],
     ],
     'snippets' => [
@@ -69,8 +29,8 @@ Kirby::plugin('lemmon/helpful', [
     'routes' => [
         [
             'pattern' => 'helpful',
-            'method' => 'POST',
-            'action' => Helpful::handle(...),
+            'method'  => 'POST',
+            'action'  => fn (...$args) => Helpful::handle(...$args),
         ],
     ],
 ]);
